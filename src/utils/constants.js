@@ -1,0 +1,6 @@
+module.exports = {
+  PRICE: "PRICE",
+  AVAILABLE: "AVAILABLE",
+  SOLD: "SOLD",
+  MIN_TIME_TO_UPDATE: 64800000,
+};
