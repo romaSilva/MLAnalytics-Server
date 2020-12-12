@@ -1,29 +1,18 @@
-const Item = require("../models/Item");
-
-const axios = require("axios");
-
+const MeLiAPI = require("../services/MeLiAPI");
+const ItemsService = require("../services/ItemsService");
+const ItemsRepository = require("../database/repos/ItemsRepository");
 const removeAccent = require("../utils/removeAccent");
-const itemsService = require("../services/ItemsService");
 const constants = require("../utils/constants");
 
 module.exports = {
   async store(req, res) {
-    const latestItem = await Item.findAll({
-      limit: 1,
-      order: [["updated_at", "DESC"]],
-    });
+    const latestItem = await ItemsRepository.GetLatestItem();
 
-    if (
-      latestItem.length > 0 &&
-      Date.now() - Date.parse(latestItem[0].dataValues.createdAt) <
-        constants.MIN_TIME_TO_UPDATE
-    ) {
+    if (!ItemsService.checkLastDate(latestItem)) {
       return res.status(200).json({ message: "You just updated it :)" });
     }
 
-    const trendsResponse = await axios.get(
-      "https://api.mercadolibre.com/trends/MLB"
-    );
+    const trendsResponse = await MeLiAPI.get("trends/MLB");
 
     const items = trendsResponse.data.map((item, index) => {
       const newItem = new Object();
@@ -38,22 +27,30 @@ module.exports = {
     });
 
     for (let i = 0; i < items.length; i++) {
-      const searchResponse = await axios.get(
-        `https://api.mercadolibre.com/sites/MLB/search?q=${items[i].name}`
+      const searchResponse = await MeLiAPI.get(
+        `sites/MLB/search?q=${items[i].name}`
       );
 
-      items[i].category = itemsService.findCategory(
-        searchResponse.data.results || "NONE"
-      );
+      items[i].domain_id =
+        ItemsService.findCategory(
+          searchResponse.data.results,
+          constants.DOMAIN
+        ) || "NONE";
+
+      items[i].category_id =
+        ItemsService.findCategory(
+          searchResponse.data.results,
+          constants.CATEGORY
+        ) || "NONE";
 
       items[i].price =
         +parseFloat(
-          itemsService.findAverage(searchResponse.data.results, constants.PRICE)
+          ItemsService.findAverage(searchResponse.data.results, constants.PRICE)
         ).toFixed(2) || 0;
 
       items[i].available =
         +parseFloat(
-          itemsService.findAverage(
+          ItemsService.findAverage(
             searchResponse.data.results,
             constants.AVAILABLE
           )
@@ -61,20 +58,42 @@ module.exports = {
 
       items[i].sold =
         +parseFloat(
-          itemsService.findAverage(searchResponse.data.results, constants.SOLD)
+          ItemsService.findAverage(searchResponse.data.results, constants.SOLD)
         ).toFixed(2) || 0;
-      0;
 
-      console.log("Rodando...", items[i].name);
-      console.log("Categoria Encontrada...", items[i].category);
-      console.log("Preço médio...", items[i].price);
-      console.log("Média de disponíveis...", items[i].available);
-      console.log("Média de vendidos...", items[i].sold);
-      console.log("");
+      console.log(items[i]);
     }
 
-    const filteredItems = itemsService.filterCategory(items);
+    const filteredItems = ItemsService.filterCategory(items);
 
-    await Item.bulkCreate(filteredItems);
+    await ItemsRepository.AddManyItems(filteredItems);
+  },
+
+  async updateCategoryName(req, res) {
+    const itemsResponse = await ItemsRepository.GetItemsWithNullCategoryName();
+
+    const items = itemsResponse.map((item) => item.dataValues);
+
+    if (items.length < 1) {
+      return res.status(200).json({
+        message: "All updated already :)",
+      });
+    }
+
+    res.status(200).json({
+      message: "Successful request, inserting might take a while though...",
+    });
+
+    for (let i = 0; i < items.length; i++) {
+      const categoryNameResponse = await MeLiAPI.get(
+        `categories/${items[i].category_id}`
+      );
+
+      items[i].category_name = categoryNameResponse.data.name;
+
+      console.log(items[i]);
+    }
+
+    await ItemsRepository.UpdateManyItems(items, [constants.CATEGORY_NAME]);
   },
 };

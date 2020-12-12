@@ -6,7 +6,9 @@ class Item extends Model {
       {
         name: DataTypes.STRING,
         position: DataTypes.INTEGER,
-        category: DataTypes.STRING,
+        domain_id: DataTypes.STRING,
+        category_id: DataTypes.STRING,
+        category_name: DataTypes.STRING,
         price: DataTypes.DECIMAL,
         available: DataTypes.DECIMAL,
         sold: DataTypes.DECIMAL,
