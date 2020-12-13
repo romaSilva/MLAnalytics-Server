@@ -3,8 +3,18 @@ const ItemsService = require("../services/ItemsService");
 const ItemsRepository = require("../database/repos/ItemsRepository");
 const removeAccent = require("../utils/removeAccent");
 const constants = require("../utils/constants");
+const Item = require("../models/Item");
+const { Op } = require("sequelize");
 
 module.exports = {
+  async index(req, res) {
+    const { date } = req.body;
+    const itemsResponse = await ItemsRepository.GetDatedItems(date);
+    const items = itemsResponse.map((el) => el.dataValues);
+
+    return res.json({ message: "Hello World", items });
+  },
+
   async store(req, res) {
     const latestItem = await ItemsRepository.GetLatestItem();
 
